@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>RoadTrip MVP</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link 
+    rel="stylesheet" 
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+  />
+  <style>#map{height:100vh;} .itinerary{position:absolute;top:10px;right:10px;background:#fff;padding:8px;max-width:200px;}</style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="itinerary"><h4>Your Stops</h4><ul id="stops"></ul></div>
+  <script 
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  </script>
+  <script>
+    // 1) initialize map
+    const map = L.map('map').setView([43.7, 7.26], 9);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    // 2) sample POIs
+    const pois = [
+      {name: 'Hotel Riviera', type:'Hotel', coords:[43.7,7.26]},
+      {name: 'Café du Port',   type:'Restaurant', coords:[43.75,7.3]},
+      // … add more dummy points here …
+    ];
+
+    // 3) add markers & click handler
+    const stopsEl = document.getElementById('stops');
+    pois.forEach(p => {
+      const m = L.marker(p.coords).addTo(map)
+        .bindPopup(`<b>${p.name}</b><br>${p.type}<br><button>Add Stop</button>`);
+      m.on('popupopen', () => {
+        document.querySelector('.leaflet-popup-content button')
+          .onclick = () => {
+            const li = document.createElement('li');
+            li.textContent = p.name;
+            stopsEl.appendChild(li);
+            map.closePopup();
+          };
+      });
+    });
+
+    // 4) draw a dummy polyline route
+    const routeCoords = [[43.7,7.26],[44.0,7.80],[44.5,8.20]];
+    L.polyline(routeCoords, {color:'blue'}).addTo(map);
+  </script>
+</body>
+</html>
