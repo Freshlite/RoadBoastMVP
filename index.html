@@ -4,49 +4,77 @@
   <meta charset="utf-8" />
   <title>RoadTrip MVP</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link 
-    rel="stylesheet" 
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
-  />
-  <style>#map{height:100vh;} .itinerary{position:absolute;top:10px;right:10px;background:#fff;padding:8px;max-width:200px;}</style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    body, html { margin:0; padding:0; height:100%; font-family: Arial, sans-serif; }
+    #intro { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; }
+    #intro input { margin: 8px; padding: 8px; width: 200px; }
+    #intro button { padding: 8px 16px; }
+    #map { height:100%; display:none; }
+    .itinerary { position:absolute; top:10px; right:10px; background:#fff; padding:8px; max-width:200px; z-index:1000; display:none; }
+    .itinerary h4 { margin:0 0 8px; }
+    .leaflet-container { z-index: 0; }
+  </style>
 </head>
 <body>
+  <div id="intro">
+    <h2>Plan Your Road Trip</h2>
+    <input id="start" type="text" placeholder="Start (lat,lng) e.g. 43.7,7.26" />
+    <input id="end" type="text" placeholder="End (lat,lng) e.g. 44.5,8.20" />
+    <button id="goBtn">Show Route</button>
+  </div>
+
   <div id="map"></div>
   <div class="itinerary"><h4>Your Stops</h4><ul id="stops"></ul></div>
-  <script 
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-  </script>
-  <script>
-    // 1) initialize map
-    const map = L.map('map').setView([43.7, 7.26], 9);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 2) sample POIs
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let map;
     const pois = [
       {name: 'Hotel Riviera', type:'Hotel', coords:[43.7,7.26]},
-      {name: 'Café du Port',   type:'Restaurant', coords:[43.75,7.3]},
-      // … add more dummy points here …
+      {name: 'Café du Port', type:'Restaurant', coords:[43.75,7.3]},
+      {name: 'Trattoria Bella', type:'Restaurant', coords:[44.0,7.8]},
+      {name: 'Mountain B&B', type:'Hotel', coords:[44.2,7.9]},
     ];
 
-    // 3) add markers & click handler
-    const stopsEl = document.getElementById('stops');
-    pois.forEach(p => {
-      const m = L.marker(p.coords).addTo(map)
-        .bindPopup(`<b>${p.name}</b><br>${p.type}<br><button>Add Stop</button>`);
-      m.on('popupopen', () => {
-        document.querySelector('.leaflet-popup-content button')
-          .onclick = () => {
+    document.getElementById('goBtn').onclick = () => {
+      const startInput = document.getElementById('start').value.split(',');
+      const endInput = document.getElementById('end').value.split(',');
+      if(startInput.length !== 2 || endInput.length !== 2) {
+        alert('Please enter both start and end as lat,lng');
+        return;
+      }
+      const startCoords = [parseFloat(startInput[0]), parseFloat(startInput[1])];
+      const endCoords = [parseFloat(endInput[0]), parseFloat(endInput[1])];
+
+      // Hide intro, show map & itinerary
+      document.getElementById('intro').style.display = 'none';
+      document.getElementById('map').style.display = 'block';
+      document.querySelector('.itinerary').style.display = 'block';
+
+      // Init map
+      map = L.map('map').fitBounds([startCoords, endCoords]);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+      // Draw route line
+      L.polyline([startCoords, endCoords], {color:'blue'}).addTo(map);
+
+      // Add POIs
+      const stopsEl = document.getElementById('stops');
+      pois.forEach(p => {
+        const marker = L.marker(p.coords).addTo(map)
+          .bindPopup(`<b>${p.name}</b><br>${p.type}<br><button>Add Stop</button>`);
+        marker.on('popupopen', () => {
+          document.querySelector('.leaflet-popup-content button').onclick = () => {
             const li = document.createElement('li');
             li.textContent = p.name;
             stopsEl.appendChild(li);
             map.closePopup();
           };
+        });
       });
-    });
-
-    // 4) draw a dummy polyline route
-    const routeCoords = [[43.7,7.26],[44.0,7.80],[44.5,8.20]];
-    L.polyline(routeCoords, {color:'blue'}).addTo(map);
+    };
   </script>
 </body>
 </html>
+
