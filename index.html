@@ -4,29 +4,25 @@
   <meta charset="utf-8" />
   <title>RoadTrip MVP</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet CSS (not used for Google Maps) -->
   <style>
     body, html { margin:0; padding:0; height:100%; font-family: Arial, sans-serif; }
     #intro { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; }
     #intro input, #intro button { margin: 8px; padding: 8px; width: 220px; }
     #map { display:none; height:100%; }
-    .itinerary { position:absolute; top:10px; right:10px; background:#fff; padding:8px; max-width:240px; z-index:1000; display:none; border-radius:4px; box-shadow:0 2px 6px rgba(0,0,0,0.3); }
+    .itinerary { position:absolute; top:10px; right:10px; background:#fff; padding:8px; max-width:300px; z-index:1000; display:none; border-radius:4px; box-shadow:0 2px 6px rgba(0,0,0,0.3); }
     .itinerary h4 { margin:0 0 8px; }
+    .itinerary ul { padding-left:16px; }
   </style>
-  <!-- Global handler to suppress unhandled promise rejections from Maps/Places -->
-  <script>
-    window.addEventListener('unhandledrejection', event => {
-      console.warn('Suppressed unhandled promise rejection:', event.reason);
-      event.preventDefault();
-    });
-  </script>
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <!-- Suppress Maps/Places unhandled promise warnings -->
+  <script>
+    window.addEventListener('unhandledrejection', e => e.preventDefault());
+  </script>
 </head>
 <body>
-  <!-- Intro Form -->
   <div id="intro">
     <h2>Plan Your Road Trip</h2>
     <input id="startCity" type="text" placeholder="Start city (e.g. Paris)" />
@@ -34,123 +30,86 @@
     <button id="goBtn">Show Route</button>
   </div>
 
-  <!-- Map & Itinerary -->
   <div id="map"></div>
   <div class="itinerary">
-    <h4>Your Stops</h4>
+    <h4>Suggested Stops Along Your Route</h4>
     <ul id="stops"></ul>
   </div>
 
   <script>
-    // 1) Initialize Firebase
-    const firebaseConfig = {
-      apiKey: "AIzaSyDANJEEJynDr4CD0nW71PeM6GAgzFek2sQ",
+    // Initialize Firebase
+    const firebaseConfig = { apiKey: "AIzaSyDANJEEJynDr4CD0nW71PeM6GAgzFek2sQ",
   authDomain: "roadtripmvp-f1433.firebaseapp.com",
   projectId: "roadtripmvp-f1433",
   storageBucket: "roadtripmvp-f1433.firebasestorage.app",
   messagingSenderId: "778877093803",
   appId: "1:778877093803:web:5b4ff2ae6532b60c0a74ee",
-  measurementId: "G-F4TJRT2STF"
-    };
+  measurementId: "G-F4TJRT2STF" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // 2) Prepare Google Maps services
+    // Prepare Google Maps services
     let map, directionsSvc, directionsRenderer, placesSvc;
     function initMap() {
-      map = new google.maps.Map(document.getElementById('map'), {
-        center: { lat: 45.0, lng: 5.0 }, zoom: 6
-      });
+      map = new google.maps.Map(document.getElementById('map'), { center:{lat:45,lng:5}, zoom:6 });
       directionsSvc      = new google.maps.DirectionsService();
       directionsRenderer = new google.maps.DirectionsRenderer({ map });
       placesSvc          = new google.maps.places.PlacesService(map);
     }
 
-    // 3) Handle form submission with error handling
     document.getElementById('goBtn').onclick = async () => {
-      try {
-        const startCity = document.getElementById('startCity').value.trim();
-        const endCity   = document.getElementById('endCity').value.trim();
-        if (!startCity || !endCity) return alert('Please enter both start and end cities.');
+      const startCity = document.getElementById('startCity').value.trim();
+      const endCity   = document.getElementById('endCity').value.trim();
+      if(!startCity||!endCity) return alert('Enter both cities.');
 
-        // Show map and itinerary
-        document.getElementById('intro').style.display = 'none';
-        document.getElementById('map').style.display   = 'block';
-        document.querySelector('.itinerary').style.display = 'block';
+      // Show map & suggestions panel
+      document.getElementById('intro').style.display = 'none';
+      document.getElementById('map').style.display   = 'block';
+      document.querySelector('.itinerary').style.display = 'block';
 
-        // 4) Request directions with error handling
-        let response;
-        try {
-          response = await directionsSvc.route({
-            origin:      startCity,
-            destination: endCity,
-            travelMode:  'DRIVING'
-          });
-        } catch (err) {
-          console.error('DirectionsService error:', err);
-          return alert('Could not get directions: ' + err.message);
+      // Get route
+      let res;
+      try { res = await directionsSvc.route({ origin:startCity, destination:endCity, travelMode:'DRIVING' }); }
+      catch(err){ return alert('Directions error: '+err.message); }
+      directionsRenderer.setDirections(res);
+      const route = res.routes[0];
+
+      // Fetch POIs near each leg start and end
+      const stopsEl = document.getElementById('stops');
+      stopsEl.innerHTML = '';
+      const legPlaces = [];
+      for(const leg of route.legs){
+        const locs = [leg.start_location, leg.end_location];
+        for(const loc of locs){
+          try{
+            const results = await new Promise((resolve, reject) => {
+              placesSvc.nearbySearch({ location:loc, radius:20000, type:['lodging','restaurant'] }, (r,s) => s===google.maps.places.PlacesServiceStatus.OK?resolve(r):resolve([]));
+            });
+            legPlaces.push(...results.slice(0,3));
+          }catch(e){ console.warn('POI fetch failed',e); }
         }
-        directionsRenderer.setDirections(response);
-        const route = response.routes[0];
-
-        // 5) Fetch POIs along route legs with individual error handling
-        const stopsEl = document.getElementById('stops');
-        stopsEl.innerHTML = '';
-        const poiPromises = route.legs.map(leg => new Promise(resolve => {
-          placesSvc.nearbySearch({
-            location: leg.start_location,
-            radius:   20000,
-            type:     ['lodging', 'restaurant']
-          }, (results, status) => {
-            if (status === google.maps.places.PlacesServiceStatus.OK) {
-              resolve(results);
-            } else {
-              console.warn('PlacesService returned status:', status);
-              resolve([]);
-            }
-          });
-        }));
-        let allPOI = [];
-        try {
-          allPOI = (await Promise.all(poiPromises)).flat();
-        } catch (err) {
-          console.error('Error fetching POIs:', err);
-        }
-        const results = allPOI.slice(0, 10);
-
-        // 6) Render POI markers and list
-        results.forEach(place => {
-          const marker = new google.maps.Marker({ position: place.geometry.location, map });
-          marker.addListener('click', () => {
-            const li = document.createElement('li');
-            li.textContent = place.name;
-            stopsEl.appendChild(li);
-          });
-        });
-
-        // 7) Save trip to Firestore
-        try {
-          await db.collection('trips').add({
-            startCity,
-            endCity,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-          });
-          console.log('Trip saved to Firestore');
-        } catch (err) {
-          console.error('Error saving trip:', err);
-        }
-
-      } catch (err) {
-        console.error('Error in trip generation:', err);
-        alert('An unexpected error occurred: ' + err.message);
       }
+      // Dedupe by place_id
+      const unique = {};
+      const suggestions = [];
+      for(const p of legPlaces){ if(!unique[p.place_id]){ unique[p.place_id]=true; suggestions.push(p); } }
+
+      // Display suggestions
+      suggestions.forEach(place=>{
+        // List
+        const li=document.createElement('li');
+        li.textContent = place.name + ' (' + (place.types[0]||'poi') + ')';
+        stopsEl.appendChild(li);
+        // Marker
+        new google.maps.Marker({ position:place.geometry.location, map, title:place.name });
+      });
+
+      // Save trip (cities & suggestions)
+      db.collection('trips').add({ startCity,endCity, suggestions:suggestions.map(p=>p.name), timestamp:firebase.firestore.FieldValue.serverTimestamp() });
     };
   </script>
 
-  <!-- Load Google Maps JS with your API key -->
-  <!-- If you see ApiTargetBlockedMapError, adjust key restrictions in Google Cloud Console -->
-  <script async
-    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAeE9crl0TfstzJAjZ4ZcRX0SDCTBE4Qek&libraries=places&callback=initMap">
-  </script>
+  <!-- Load Google Maps JS -->
+  <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAeE9crl0TfstzJAjZ4ZcRX0SDCTBE4Qek&libraries=places&callback=initMap"></script>
 </body>
 </html>
