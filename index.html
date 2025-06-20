@@ -146,5 +146,12 @@
   <script async
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAeE9crl0TfstzJAjZ4ZcRX0SDCTBE4Qek&libraries=places&callback=initMap">
   </script>
+  <!-- Suppress global unhandled promise rejections (e.g., from Maps Places) -->
+  <script>
+    window.addEventListener('unhandledrejection', event => {
+      console.warn('Unhandled promise rejection intercepted:', event.reason);
+      event.preventDefault();
+    });
+  </script>
 </body>
 </html>
