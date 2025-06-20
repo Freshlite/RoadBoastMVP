@@ -71,12 +71,18 @@
         document.getElementById('map').style.display   = 'block';
         document.querySelector('.itinerary').style.display = 'block';
 
-        // 4) Request directions
-        const response = await directionsSvc.route({
-          origin:      startCity,
-          destination: endCity,
-          travelMode:  'DRIVING'
-        });
+                // 4) Request directions with error handling
+        let response;
+        try {
+          response = await directionsSvc.route({
+            origin:      startCity,
+            destination: endCity,
+            travelMode:  'DRIVING'
+          });
+        } catch (err) {
+          console.error('DirectionsService error:', err);
+          return alert('Could not get directions: ' + err.message);
+        }
         directionsRenderer.setDirections(response);
         const route = response.routes[0];
 
