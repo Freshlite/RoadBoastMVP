@@ -14,6 +14,13 @@
     .itinerary { position:absolute; top:10px; right:10px; background:#fff; padding:8px; max-width:240px; z-index:1000; display:none; border-radius:4px; box-shadow:0 2px 6px rgba(0,0,0,0.3); }
     .itinerary h4 { margin:0 0 8px; }
   </style>
+  <!-- Global handler to suppress unhandled promise rejections from Maps/Places -->
+  <script>
+    window.addEventListener('unhandledrejection', event => {
+      console.warn('Suppressed unhandled promise rejection:', event.reason);
+      event.preventDefault();
+    });
+  </script>
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -71,7 +78,7 @@
         document.getElementById('map').style.display   = 'block';
         document.querySelector('.itinerary').style.display = 'block';
 
-                // 4) Request directions with error handling
+        // 4) Request directions with error handling
         let response;
         try {
           response = await directionsSvc.route({
@@ -86,10 +93,9 @@
         directionsRenderer.setDirections(response);
         const route = response.routes[0];
 
-        // 5) Fetch POIs along route legs
+        // 5) Fetch POIs along route legs with individual error handling
         const stopsEl = document.getElementById('stops');
         stopsEl.innerHTML = '';
-        // Gather POIs with individual error handling
         const poiPromises = route.legs.map(leg => new Promise(resolve => {
           placesSvc.nearbySearch({
             location: leg.start_location,
@@ -145,13 +151,6 @@
   <!-- If you see ApiTargetBlockedMapError, adjust key restrictions in Google Cloud Console -->
   <script async
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAeE9crl0TfstzJAjZ4ZcRX0SDCTBE4Qek&libraries=places&callback=initMap">
-  </script>
-  <!-- Suppress global unhandled promise rejections (e.g., from Maps Places) -->
-  <script>
-    window.addEventListener('unhandledrejection', event => {
-      console.warn('Unhandled promise rejection intercepted:', event.reason);
-      event.preventDefault();
-    });
   </script>
 </body>
 </html>
